@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, isFirebaseConfigured } from '../firebase';
-import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { dbService, Member } from '../services/dbService';
 
 interface AuthContextType {
@@ -9,6 +9,7 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithAdminEmail: (email: string, pass: string) => Promise<void>;
   signInAsMember: (memberId: string, pin: string) => Promise<boolean | string>;
   logout: () => Promise<void>;
 }
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   loading: true,
   signInWithGoogle: async () => {},
+  signInWithAdminEmail: async () => {},
   signInAsMember: async () => false,
   logout: async () => {},
 });
@@ -38,6 +40,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentMember(JSON.parse(savedMember));
     }
   }, []);
+
+  const checkIfAdmin = async (email: string | null) => {
+    if (!email) return false;
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    let admins: string[] = [];
+    try {
+      const settings = await dbService.getSettings();
+      admins = settings.adminEmails || [];
+    } catch(e) {
+      console.warn("Could not fetch admin settings from DB (likely rules), falling back to master emails", e);
+    }
+    const masterEmails = ['maaama33mama3@gmail.com', 'admin@gks.com']; // Only allowing exact matches
+    
+    const allAdmins = [...masterEmails, ...admins].map(a => a.trim().toLowerCase());
+    return allAdmins.includes(normalizedEmail);
+  };
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -59,26 +78,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // Process potential redirect result first for PWA/Mobile
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+         const isValidAuth = await checkIfAdmin(result.user.email);
+         if (!isValidAuth) {
+            await signOut(auth);
+            alert('আপনার ইমেইলটি অ্যাডমিন হিসেবে অনুমোদিত নয়!'); 
+         }
+      }
+    }).catch((error) => {
+      console.error("Google Auth Redirect Error:", error);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user) {
-        // Fetch settings to check admin emails
-        let admins: string[] = [];
-        try {
-          const settings = await dbService.getSettings();
-          admins = settings.adminEmails || [];
-        } catch(e) {
-          console.warn("Could not fetch admin settings from DB (likely rules), falling back to master emails", e);
-        }
+        const isValid = await checkIfAdmin(user.email);
         
-        const masterEmails = ['maaama33mama3@gmail.com', 'mr3hasan@gmail.com'];
-        
-        if (masterEmails.includes(user.email || '') || (user.email && admins.includes(user.email))) {
+        if (isValid) {
+          setCurrentUser(user);
           setIsAdmin(true);
         } else {
-          setIsAdmin(false); // They logged in with Google but aren't in the admin list
+          // They logged in but aren't in the admin list
+          await signOut(auth); // Kick them immediately
+          setCurrentUser(null);
+          setIsAdmin(false); 
         }
       } else {
+        setCurrentUser(null);
         setIsAdmin(false);
       }
       setLoading(false);
@@ -97,7 +124,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!auth) throw new Error("Firebase auth not initialized");
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    await signInWithPopup(auth, provider);
+    
+    // In Standalone mode (PWA/Home Screen), popups often get blocked or crash the webview
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in window.navigator && (window.navigator as any).standalone);
+    
+    if (isStandalone || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      await signInWithRedirect(auth, provider);
+    } else {
+      const result = await signInWithPopup(auth, provider);
+      const isValid = await checkIfAdmin(result.user.email);
+      if (!isValid) {
+         await signOut(auth);
+         throw new Error("এই জিমেইলটি অ্যাডমিন প্যানেলের জন্য অনুমোদিত নয়!");
+      }
+    }
+  };
+
+  const signInWithAdminEmail = async (email: string, pass: string) => {
+    if (!auth) throw new Error("Firebase auth not initialized");
+    const credential = await signInWithEmailAndPassword(auth, email, pass);
+    const isValid = await checkIfAdmin(credential.user.email);
+    if (!isValid) {
+       await signOut(auth);
+       throw new Error("এই ইমেইলটি অ্যাডমিন প্যানেলের জন্য অনুমোদিত নয়!");
+    }
   };
 
   const signInAsMember = async (memberId: string, pin: string) => {
@@ -150,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, currentMember, isAdmin, loading, signInWithGoogle, signInAsMember, logout }}>
+    <AuthContext.Provider value={{ currentUser, currentMember, isAdmin, loading, signInWithGoogle, signInWithAdminEmail, signInAsMember, logout }}>
       {children}
     </AuthContext.Provider>
   );
