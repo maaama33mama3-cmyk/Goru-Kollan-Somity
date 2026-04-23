@@ -63,11 +63,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(user);
       if (user) {
         // Fetch settings to check admin emails
-        const settings = await dbService.getSettings();
-        const admins = settings.adminEmails || [];
-        const masterEmail = 'maaama33mama3@gmail.com';
+        let admins: string[] = [];
+        try {
+          const settings = await dbService.getSettings();
+          admins = settings.adminEmails || [];
+        } catch(e) {
+          console.warn("Could not fetch admin settings from DB (likely rules), falling back to master emails", e);
+        }
         
-        if (user.email === masterEmail || (user.email && admins.includes(user.email))) {
+        const masterEmails = ['maaama33mama3@gmail.com', 'mr3hasan@gmail.com'];
+        
+        if (masterEmails.includes(user.email || '') || (user.email && admins.includes(user.email))) {
           setIsAdmin(true);
         } else {
           setIsAdmin(false); // They logged in with Google but aren't in the admin list
@@ -90,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (!auth) throw new Error("Firebase auth not initialized");
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     await signInWithPopup(auth, provider);
   };
 
