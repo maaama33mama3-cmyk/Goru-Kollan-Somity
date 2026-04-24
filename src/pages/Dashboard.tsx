@@ -9,16 +9,20 @@ import { dbService, Payment, Expense, Member, Settings } from '../services/dbSer
 import { useAuth } from '../contexts/AuthContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, parseISO } from 'date-fns';
-import { Settings as SettingsIcon, Wallet, TrendingUp, PieChart as PieChartIcon, Users, DownloadCloud } from 'lucide-react';
+import { Settings as SettingsIcon, Wallet, TrendingUp, PieChart as PieChartIcon, Users, DownloadCloud, AlertCircle, Landmark } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { downloadOrShareFile } from '../lib/downloadHelper';
 
 const COLORS = ['#10b981', '#059669', '#f59e0b', '#ef4444'];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { isAdmin, currentMember } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [loans, setLoans] = useState<any[]>([]);
   const [settings, setSettings] = useState<Settings>({ yearlyTarget: 100000, shareValue: 250 });
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +50,9 @@ export default function Dashboard() {
       
       if (isAdmin) {
         const e = await dbService.getExpenses().catch(e => { console.error(e); return []; });
+        const l = await dbService.getLoans().catch(e => { console.error(e); return []; });
         setExpenses(e);
+        setLoans(l);
       }
       
       const s = await dbService.getSettings().catch(e => { console.error(e); return { yearlyTarget: 100000, shareValue: 250, adminEmails: [] } as Settings; });
@@ -161,7 +167,9 @@ export default function Dashboard() {
     XLSX.utils.book_append_sheet(wb, wsLoans, "কর্জ বা লোন");
 
     // Save
-    XLSX.writeFile(wb, `GKS_Backup_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    await downloadOrShareFile(blob, `GKS_Backup_${format(new Date(), 'yyyy-MM-dd')}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   };
 
   if (currentMember && !isAdmin) {
@@ -219,7 +227,8 @@ export default function Dashboard() {
 
   const totalIncome = payments.reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpense = expenses.reduce((acc, curr) => acc + curr.amount, 0);
-  const cashInHand = totalIncome - totalExpense;
+  const activeLoans = loans.filter(l => l.status === 'active').reduce((acc, curr) => acc + curr.amount, 0);
+  const cashInHand = totalIncome - totalExpense - activeLoans;
   const progressPercent = Math.min((totalIncome / settings.yearlyTarget) * 100, 100);
 
   // Group by month for line chart
@@ -242,6 +251,7 @@ export default function Dashboard() {
   const currentMonth = format(new Date(), 'yyyy-MM');
   const paidMemberIds = new Set(payments.filter(p => p.month === currentMonth).map(p => p.memberId));
   const dueMembers = members.filter(m => m.status === 'active' && !paidMemberIds.has(m.id));
+  const currentMonthDue = dueMembers.length * settings.shareValue;
 
   return (
     <div className="space-y-6">
@@ -338,7 +348,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {/* বর্তমান ব্যালেন্স */}
         <Card className="theme-card shadow-sm hover:shadow-md transition-shadow">
           <CardContent className="p-4 sm:p-5 flex flex-col justify-between">
@@ -379,14 +389,50 @@ export default function Dashboard() {
         </Card>
 
         {/* মোট সদস্য */}
-        <Card className="theme-card shadow-sm hover:shadow-md transition-shadow">
+        <Card 
+          className="theme-card shadow-sm hover:shadow-md transition-shadow cursor-pointer border-amber-200/50 hover:border-amber-400"
+          onClick={() => navigate('/members')}
+        >
           <CardContent className="p-4 sm:p-5 flex flex-col justify-between">
             <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-amber-100 flex items-center justify-center mb-3 sm:mb-4 border border-amber-200">
               <Users className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
             </div>
             <div>
-              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1">মোট সদস্য</p>
+              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1 flex items-center">
+                মোট সদস্য <span className="ml-1 text-[10px] text-amber-500 font-semibold">(View &rarr;)</span>
+              </p>
               <h3 className="text-xl sm:text-2xl font-bold text-text-dark">{members.length} <span className="text-sm font-normal text-text-muted font-sans">জন</span></h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* বর্তমান বকেয়া */}
+        <Card className="theme-card shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-orange-100 flex items-center justify-center mb-3 sm:mb-4 border border-orange-200">
+              <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1">চলতি বকেয়া ({currentMonth})</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-text-dark">৳ {currentMonthDue.toLocaleString()}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* মোট কর্জ/লোন */}
+        <Card 
+          className="theme-card shadow-sm hover:shadow-md transition-shadow cursor-pointer border-cyan-200/50 hover:border-cyan-400"
+          onClick={() => navigate('/loans')}
+        >
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-cyan-100 flex items-center justify-center mb-3 sm:mb-4 border border-cyan-200">
+              <Landmark className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-600" />
+            </div>
+            <div>
+              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1 flex items-center">
+                চলমান লোন <span className="ml-1 text-[10px] text-cyan-500 font-semibold">(View &rarr;)</span>
+              </p>
+              <h3 className="text-xl sm:text-2xl font-bold text-text-dark">৳ {activeLoans.toLocaleString()}</h3>
             </div>
           </CardContent>
         </Card>

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { Trash2 } from 'lucide-react';
 
 export default function Expenses() {
   const { isAdmin, currentUser } = useAuth();
@@ -16,6 +17,8 @@ export default function Expenses() {
 
   // Add flow
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('কল্যাণমূলক কাজ');
@@ -50,6 +53,14 @@ export default function Expenses() {
     loadData();
   };
 
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await dbService.deleteDocument('expenses', deleteId);
+      setDeleteId(null);
+      loadData();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -70,13 +81,14 @@ export default function Expenses() {
               <TableHead>বিবরন</TableHead>
               <TableHead>ক্যাটাগরি/প্রজেক্ট</TableHead>
               <TableHead className="text-right">পরিমান (৳)</TableHead>
+              {isAdmin && <TableHead className="w-10"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8">লোড হচ্ছে...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8">লোড হচ্ছে...</TableCell></TableRow>
             ) : expenses.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8 text-text-muted">এখনো কোনো খরচ নেই</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center py-8 text-text-muted">এখনো কোনো খরচ নেই</TableCell></TableRow>
             ) : expenses.map(ex => (
               <TableRow key={ex.id}>
                 <TableCell>{format(new Date(ex.date), 'dd MMM yyyy')}</TableCell>
@@ -92,6 +104,13 @@ export default function Expenses() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right font-bold text-danger">৳ {ex.amount}</TableCell>
+                {isAdmin && (
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(ex.id)} className="text-danger hover:bg-danger/10 hover:text-danger h-8 w-8">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
@@ -121,6 +140,21 @@ export default function Expenses() {
             
             <Button type="submit" variant="destructive" className="w-full mt-4">খরচ যুক্ত করুন</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>খরচ রেকর্ড বাতিল</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-text-muted">আপনি কি নিশ্চিত যে এই খরচের রেকর্ডটি মুছে ফেলতে চান? এই অ্যাকশনটি আর পরিবর্তন করা যাবে না।</p>
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>বাতিল</Button>
+            <Button variant="destructive" onClick={confirmDelete}>হ্যাঁ, মুছে ফেলুন</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

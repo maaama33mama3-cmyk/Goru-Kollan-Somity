@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { Trash2 } from 'lucide-react';
 
 export default function Meetings() {
   const { isAdmin } = useAuth();
@@ -15,6 +16,8 @@ export default function Meetings() {
 
   // Add flow
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [minutes, setMinutes] = useState('');
@@ -44,6 +47,14 @@ export default function Meetings() {
     loadData();
   };
 
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await dbService.deleteDocument('meetings', deleteId);
+      setDeleteId(null);
+      loadData();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -66,9 +77,16 @@ export default function Meetings() {
               <CardHeader className="bg-app-bg border-b border-border py-4">
                  <div className="flex justify-between items-center">
                     <CardTitle className="text-lg text-primary">{m.title}</CardTitle>
-                    <span className="text-sm font-semibold bg-white border border-border px-3 py-1 rounded-full">
-                       {format(new Date(m.date), 'dd MMM yyyy')}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold bg-white border border-border px-3 py-1 rounded-full">
+                         {format(new Date(m.date), 'dd MMM yyyy')}
+                      </span>
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteId(m.id)} className="text-danger hover:bg-danger/10 hover:text-danger h-8 w-8">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                  </div>
               </CardHeader>
               <CardContent className="p-4 pt-6">
@@ -108,6 +126,21 @@ export default function Meetings() {
             
             <Button type="submit" className="w-full mt-4">সংরক্ষণ করুন</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>মিটিং বাতিল</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-text-muted">আপনি কি নিশ্চিত যে এই মিটিং রেজুলেশনটি মুছে ফেলতে চান? এটি আর ফেরত আনা যাবে না।</p>
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>বাতিল</Button>
+            <Button variant="destructive" onClick={confirmDelete}>হ্যাঁ, মুছে ফেলুন</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

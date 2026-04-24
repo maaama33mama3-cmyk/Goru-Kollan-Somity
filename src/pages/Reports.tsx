@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import { downloadOrShareFile } from '../lib/downloadHelper';
 
 export default function Reports() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -53,7 +54,8 @@ export default function Reports() {
       
       const pdfHeight = (img.height * pdfWidth) / img.width;
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Annual-Audit-Report-${new Date().getFullYear()}.pdf`);
+      const pdfBlob = pdf.output('blob');
+      await downloadOrShareFile(pdfBlob, `Annual-Audit-Report-${new Date().getFullYear()}.pdf`, 'application/pdf');
     } catch (error) {
       console.error("Error generating report:", error);
       alert("রিপোর্ট ডাউনলোড করতে সমস্যা হয়েছে।");

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { Trash2 } from 'lucide-react';
 
 export default function Loans() {
   const { isAdmin } = useAuth();
@@ -18,6 +19,9 @@ export default function Loans() {
 
   // Add flow
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [markPaidId, setMarkPaidId] = useState<string | null>(null);
+
   const [memId, setMemId] = useState('');
   const [amount, setAmount] = useState('');
 
@@ -48,10 +52,19 @@ export default function Loans() {
     loadData();
   };
 
-  const markPaid = async (loanId: string) => {
-    if(!confirm("সত্যিই কি কর্জ পরিশোধ হয়েছে?")) return;
-    await dbService.markLoanPaid(loanId);
+  const confirmMarkPaid = async () => {
+    if(!markPaidId) return;
+    await dbService.markLoanPaid(markPaidId);
+    setMarkPaidId(null);
     loadData();
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await dbService.deleteDocument('loans', deleteId);
+      setDeleteId(null);
+      loadData();
+    }
   };
 
   const getMemberName = (id: string) => members.find(m => m.id === id)?.name || 'Unknown';
@@ -102,9 +115,16 @@ export default function Loans() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  {l.status === 'active' && isAdmin && (
-                     <Button size="sm" variant="outline" onClick={() => markPaid(l.id)}>পরিশোধ করুন</Button>
-                  )}
+                  <div className="flex justify-end gap-2">
+                    {l.status === 'active' && isAdmin && (
+                       <Button size="sm" variant="outline" onClick={() => setMarkPaidId(l.id)}>পরিশোধ করুন</Button>
+                    )}
+                    {isAdmin && (
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(l.id)} className="text-danger hover:bg-danger/10 hover:text-danger h-8 w-8 shrink-0">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -137,6 +157,36 @@ export default function Loans() {
             
             <Button type="submit" className="w-full mt-4">নিশ্চিত করুন</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!markPaidId} onOpenChange={(open) => !open && setMarkPaidId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>কর্জ পরিশোধ</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-text-muted">সত্যিই কি কর্জ পরিশোধ হয়েছে?</p>
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setMarkPaidId(null)}>বাতিল</Button>
+            <Button variant="default" onClick={confirmMarkPaid}>হ্যাঁ, পরিশোধিত</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>রেকর্ড বাতিল</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-text-muted">আপনি কি নিশ্চিত যে এই কর্জ বা লোনের রেকর্ডটি মুছে ফেলতে চান?</p>
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>বাতিল</Button>
+            <Button variant="destructive" onClick={confirmDelete}>হ্যাঁ, মুছে ফেলুন</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

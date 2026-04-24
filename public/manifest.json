@@ -1,0 +1,18 @@
+{
+  "name": "গরু কল্যাণ সমিতি",
+  "short_name": "GKS",
+  "description": "গরু কল্যাণ সমিতির ম্যানেজমেন্ট সিস্টেম",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

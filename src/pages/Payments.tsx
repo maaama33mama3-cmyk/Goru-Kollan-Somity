@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
-import { Download } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
+import { downloadOrShareFile } from '../lib/downloadHelper';
 
 export default function Payments() {
   const { isAdmin, currentUser } = useAuth();
@@ -29,6 +30,7 @@ export default function Payments() {
   const [fundType, setFundType] = useState('মাসিক চাঁদা');
   const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [downloadConfirmOpen, setDownloadConfirmOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const slipRef = useRef<HTMLDivElement>(null);
 
@@ -95,10 +97,19 @@ export default function Payments() {
       
       const pdfHeight = (img.height * pdfWidth) / img.width;
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Monthly-Slip-${filterMonth}.pdf`);
+      const pdfBlob = pdf.output('blob');
+      await downloadOrShareFile(pdfBlob, `Monthly-Slip-${filterMonth}.pdf`, 'application/pdf');
     } catch (error) {
       console.error("Error generating slip:", error);
       alert("স্লিপ ডাউনলোড করতে সমস্যা হয়েছে।");
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await dbService.deleteDocument('payments', deleteId);
+      setDeleteId(null);
+      loadData();
     }
   };
 
@@ -139,13 +150,14 @@ export default function Payments() {
               <TableHead>ফান্ড</TableHead>
               <TableHead>মাধ্যম</TableHead>
               <TableHead className="text-right">পরিমান (৳)</TableHead>
+              {isAdmin && <TableHead className="w-10"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8">লোড হচ্ছে...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8">লোড হচ্ছে...</TableCell></TableRow>
             ) : payments.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8 text-text-muted">এই মাসে কোনো চাঁদা জমা হয়নি</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-text-muted">এই মাসে কোনো চাঁদা জমা হয়নি</TableCell></TableRow>
             ) : payments.map(p => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{getMemberName(p.memberId)}</TableCell>
@@ -161,6 +173,13 @@ export default function Payments() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right font-bold text-primary">৳ {p.amount}</TableCell>
+                {isAdmin && (
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)} className="text-danger hover:bg-danger/10 hover:text-danger h-8 w-8">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {!loading && payments.length > 0 && (
@@ -169,6 +188,7 @@ export default function Payments() {
                 <TableCell className="text-right font-bold text-lg text-primary">
                   ৳ {payments.reduce((acc, curr) => acc + curr.amount, 0).toLocaleString()}
                 </TableCell>
+                {isAdmin && <TableCell></TableCell>}
               </TableRow>
             )}
           </TableBody>
@@ -251,6 +271,20 @@ export default function Payments() {
           <div className="flex justify-end gap-3 mt-4">
             <Button variant="outline" onClick={() => setDownloadConfirmOpen(false)}>বাতিল করুন</Button>
             <Button onClick={downloadSlip}>হ্যাঁ, ডাউনলোড করুন</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>এন্ট্রি বাতিল</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-text-muted">আপনি কি নিশ্চিত যে এই চাঁদা এন্ট্রিটি মুছে ফেলতে চান? এই অ্যাকশনটি আর পরিবর্তন করা যাবে না।</p>
+          </div>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setDeleteId(null)}>বাতিল</Button>
+            <Button variant="destructive" onClick={confirmDelete}>হ্যাঁ, মুছে ফেলুন</Button>
           </div>
         </DialogContent>
       </Dialog>

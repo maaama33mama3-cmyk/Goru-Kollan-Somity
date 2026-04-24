@@ -297,5 +297,21 @@ export const dbService = {
        await setDoc(doc(db, 'settings', 'general'), { ...settingsData, id: 'general' }, { merge: true });
      }
      cache.settings.data = null;
+  },
+
+  async deleteDocument(collectionName: keyof typeof cache, docId: string) {
+    if (!isFirebaseConfigured) {
+      const items = getLocal(collectionName);
+      const updated = items.filter((item: any) => item.id !== docId);
+      setLocal(collectionName, updated);
+    } else {
+      if (!db) throw new Error("DB not initialized");
+      // The collection param is string. We cast it so types work.
+      await deleteDoc(doc(db, collectionName as string, docId));
+    }
+    // Invalidate the cache for this collection
+    if (cache[collectionName]) {
+      (cache as any)[collectionName].data = null;
+    }
   }
 };
