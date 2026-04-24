@@ -375,19 +375,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* মোট খরচ */}
-        <Card className="theme-card shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-4 sm:p-5 flex flex-col justify-between">
-            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-rose-100 flex items-center justify-center mb-3 sm:mb-4 border border-rose-200">
-              <PieChartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-rose-600" />
-            </div>
-            <div>
-              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1">সর্বমোট খরচ</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-text-dark">৳ {totalExpense.toLocaleString()}</h3>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* মোট সদস্য */}
         <Card 
           className="theme-card shadow-sm hover:shadow-md transition-shadow cursor-pointer border-amber-200/50 hover:border-amber-400"
@@ -415,6 +402,19 @@ export default function Dashboard() {
             <div>
               <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1">চলতি বকেয়া ({currentMonth})</p>
               <h3 className="text-xl sm:text-2xl font-bold text-text-dark">৳ {currentMonthDue.toLocaleString()}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* মোট খরচ */}
+        <Card className="theme-card shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-rose-100 flex items-center justify-center mb-3 sm:mb-4 border border-rose-200">
+              <PieChartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-rose-600" />
+            </div>
+            <div>
+              <p className="text-[12px] sm:text-[13px] font-medium text-text-muted mb-1">সর্বমোট খরচ</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-text-dark">৳ {totalExpense.toLocaleString()}</h3>
             </div>
           </CardContent>
         </Card>
