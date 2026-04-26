@@ -21,42 +21,32 @@ export const downloadOrShareFile = async (blob: Blob, filename: string, mimeType
   // 1. Capacitor Native App (Android/iOS) Fallback using Filesystem API
   if (Capacitor.isNativePlatform()) {
     try {
-      const base64Data = await blobToBase64(blob);
+      // Check and request permission first
+      let permStatus = await Filesystem.checkPermissions();
       
-      // Fix: Write file in chunks to avoid TransactionTooLargeException causing immediate crash
-      await Filesystem.writeFile({
-        path: filename,
-        data: '',
-        directory: Directory.Cache
-      });
-      
-      // Use chunks of multiple of 4 to ensure valid base64 blocks (512KB of characters)
-      const chunkSize = 512 * 1024;
-      for (let i = 0; i < base64Data.length; i += chunkSize) {
-        const chunk = base64Data.slice(i, i + chunkSize);
-        await Filesystem.appendFile({
-          path: filename,
-          data: chunk,
-          directory: Directory.Cache
-        });
+      if (permStatus.publicStorage !== 'granted') {
+        permStatus = await Filesystem.requestPermissions();
       }
 
-      // Get URI of saved file
-      const savedFile = await Filesystem.getUri({
+      if (permStatus.publicStorage !== 'granted') {
+        alert("ফাইল সেভ করার জন্য স্টোরেজ পারমিশন প্রয়োজন। দয়া করে সেটিং থেকে পারমিশন দিন।");
+        return;
+      }
+
+      const base64Data = await blobToBase64(blob);
+      
+      // Save directly to Documents folder instead of Cache + Share (which causes crashes)
+      await Filesystem.writeFile({
         path: filename,
-        directory: Directory.Cache
+        data: base64Data,
+        directory: Directory.Documents
       });
       
-      // Open native share/save dialog
-      await Share.share({
-        title: filename,
-        url: savedFile.uri,
-        dialogTitle: 'Share or Save File'
-      });
+      alert(`ফাইলটি সফলভাবে ডাউনলোড হয়েছে!\nফাইলটি আপনার ফোনের 'Documents' ফোল্ডারে ${filename} নামে সেভ হয়েছে।`);
       return;
     } catch (error) {
-      console.error("Native save/share failed:", error);
-      alert("মোবাইল অ্যাপে ফাইল সেভ বা শেয়ার করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
+      console.error("Native save failed:", error);
+      alert("ডাউনলোড ফেইল হয়েছে। দয়া করে অ্যাপ এর স্টোরেজ পারমিশন অন আছে কিনা চেক করুন।");
       return;
     }
   }
