@@ -1,4 +1,48 @@
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result.split(',')[1]);
+      } else {
+        reject(new Error('Could not convert blob to base64'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
 export const downloadOrShareFile = async (blob: Blob, filename: string, mimeType: string) => {
+  // 1. Capacitor Native App (Android/iOS) Fallback using Filesystem API
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await blobToBase64(blob);
+      const savedFile = await Filesystem.writeFile({
+        path: filename,
+        data: base64Data,
+        directory: Directory.Cache
+      });
+      
+      // Open native share/save dialog
+      await Share.share({
+        title: filename,
+        url: savedFile.uri,
+        dialogTitle: 'Share or Save File'
+      });
+      return;
+    } catch (error) {
+      console.error("Native save/share failed:", error);
+      alert("মোবাইল অ্যাপে ফাইল সেভ বা শেয়ার করতে সমস্যা হয়েছে।");
+      return;
+    }
+  }
+
+  // 2. Web / PWA Fallback
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   
   if (isMobile) {
