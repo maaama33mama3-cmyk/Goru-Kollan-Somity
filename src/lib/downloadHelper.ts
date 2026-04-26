@@ -22,9 +22,28 @@ export const downloadOrShareFile = async (blob: Blob, filename: string, mimeType
   if (Capacitor.isNativePlatform()) {
     try {
       const base64Data = await blobToBase64(blob);
-      const savedFile = await Filesystem.writeFile({
+      
+      // Fix: Write file in chunks to avoid TransactionTooLargeException causing immediate crash
+      await Filesystem.writeFile({
         path: filename,
-        data: base64Data,
+        data: '',
+        directory: Directory.Cache
+      });
+      
+      // Use chunks of multiple of 4 to ensure valid base64 blocks (512KB of characters)
+      const chunkSize = 512 * 1024;
+      for (let i = 0; i < base64Data.length; i += chunkSize) {
+        const chunk = base64Data.slice(i, i + chunkSize);
+        await Filesystem.appendFile({
+          path: filename,
+          data: chunk,
+          directory: Directory.Cache
+        });
+      }
+
+      // Get URI of saved file
+      const savedFile = await Filesystem.getUri({
+        path: filename,
         directory: Directory.Cache
       });
       
@@ -37,7 +56,7 @@ export const downloadOrShareFile = async (blob: Blob, filename: string, mimeType
       return;
     } catch (error) {
       console.error("Native save/share failed:", error);
-      alert("মোবাইল অ্যাপে ফাইল সেভ বা শেয়ার করতে সমস্যা হয়েছে।");
+      alert("মোবাইল অ্যাপে ফাইল সেভ বা শেয়ার করতে সমস্যা হয়েছে। দয়া করে আবার চেষ্টা করুন।");
       return;
     }
   }
