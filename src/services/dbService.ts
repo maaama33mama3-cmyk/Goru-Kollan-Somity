@@ -163,6 +163,18 @@ export const dbService = {
     return id;
   },
 
+  async updatePayment(id: string, data: Partial<Payment>) {
+    if (!isFirebaseConfigured) {
+      let payments = getLocal('payments') as Payment[];
+      payments = payments.map((p) => p.id === id ? { ...p, ...data } : p);
+      setLocal('payments', payments);
+    } else {
+      if (!db) throw new Error("DB not initialized");
+      await updateDoc(doc(db, 'payments', id), data as any);
+    }
+    cache.payments.data = null;
+  },
+
   async getExpenses(): Promise<Expense[]> {
     if (cache.expenses.data && Date.now() - cache.expenses.time < CACHE_TTL) return cache.expenses.data;
     

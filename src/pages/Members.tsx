@@ -6,8 +6,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { Pencil } from 'lucide-react';
 
 export default function Members() {
   const { isAdmin } = useAuth();
@@ -26,6 +28,12 @@ export default function Members() {
   const [newShares, setNewShares] = useState('1');
   const [newMemberId, setNewMemberId] = useState('');
   const [newPin, setNewPin] = useState('');
+
+  // Edit Payment State
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [editMonth, setEditMonth] = useState('');
+  const [editMethod, setEditMethod] = useState('');
+  const [editAmount, setEditAmount] = useState('');
 
   useEffect(() => {
     loadData();
@@ -76,6 +84,25 @@ export default function Members() {
   const openPassbook = (m: Member) => {
     setSelectedMember(m);
     setPassbookOpen(true);
+  };
+
+  const openEditPayment = (p: Payment) => {
+    setEditingPayment(p);
+    setEditMonth(p.month);
+    setEditMethod(p.method);
+    setEditAmount(p.amount.toString());
+  };
+
+  const handleEditPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPayment) return;
+    await dbService.updatePayment(editingPayment.id, {
+      month: editMonth as any,
+      method: editMethod as any,
+      amount: Number(editAmount)
+    });
+    setEditingPayment(null);
+    loadData();
   };
 
   const getMemberPayments = (mId: string) => {
@@ -219,6 +246,7 @@ export default function Members() {
                         <TableHead>পরিমান</TableHead>
                         <TableHead>মাধ্যম</TableHead>
                         <TableHead>তারিখ</TableHead>
+                        {isAdmin && <TableHead className="text-right">অ্যাকশন</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -228,6 +256,11 @@ export default function Members() {
                           <TableCell>৳ {p.amount}</TableCell>
                           <TableCell>{p.method}</TableCell>
                           <TableCell className="text-sm font-medium" style={{ color: '#71717a' }}>{format(new Date(p.date), 'dd/MM/yyyy')}</TableCell>
+                          {isAdmin && (
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" onClick={() => openEditPayment(p)} className="h-8 w-8 text-primary"><Pencil className="w-4 h-4" /></Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -261,6 +294,54 @@ export default function Members() {
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>বাতিল</Button>
             <Button variant="destructive" onClick={handleDeleteMember}>হ্যাঁ, বাদ দিন</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Payment Dialog */}
+      <Dialog open={!!editingPayment} onOpenChange={(open) => !open && setEditingPayment(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>পেমেন্ট এডিট করুন</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditPaymentSubmit} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>মাস</Label>
+              <Select value={editMonth} onValueChange={setEditMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="মাস নির্বাচন করুন" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                    <SelectItem key={m} value={`${m} ${new Date().getFullYear()}`}>{m} {new Date().getFullYear()}</SelectItem>
+                  ))}
+                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                    <SelectItem key={`${m}-prev`} value={`${m} ${new Date().getFullYear() - 1}`}>{m} {new Date().getFullYear() - 1}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>পেমেন্ট মাধ্যম</Label>
+              <Select value={editMethod} onValueChange={setEditMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="মাধ্যম নির্বাচন করুন" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">ক্যাশ</SelectItem>
+                  <SelectItem value="bKash">বিকাশ</SelectItem>
+                  <SelectItem value="Nagad">নগদ</SelectItem>
+                  <SelectItem value="Bank">ব্যাংক</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>পরিমান (৳)</Label>
+              <Input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <Button type="button" variant="outline" onClick={() => setEditingPayment(null)}>বাতিল</Button>
+              <Button type="submit">সেভ করুন</Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

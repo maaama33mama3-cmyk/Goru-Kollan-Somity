@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { App as CapacitorApp } from '@capacitor/app';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Members from './pages/Members';
@@ -16,6 +17,32 @@ import Reports from './pages/Reports';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import { Button } from '@/components/ui/button';
+
+function BackButtonHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const attachListener = async () => {
+      await CapacitorApp.removeAllListeners();
+      CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+        if (location.pathname === '/' || location.pathname === '/login') {
+          CapacitorApp.exitApp();
+        } else {
+          // If the location is anything else, simply try to go back
+          navigate(-1);
+        }
+      });
+    };
+    attachListener();
+
+    return () => {
+      CapacitorApp.removeAllListeners();
+    };
+  }, [navigate, location]);
+
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, currentMember, loading, isAdmin, logout } = useAuth();
@@ -51,6 +78,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <BackButtonHandler />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
